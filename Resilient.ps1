@@ -1013,6 +1013,7 @@ function Match-VulnByPriority {
             $key = "$val`_$plugKey"
             if($Lookup[$type].ContainsKey($key)){ $found += [pscustomobject]@{ Type=$type; Key=$val; Row=$Lookup[$type][$key] } }
     }
+    }
     if($found.Count -gt 1){
         $script:AmbiguityTotal++
         if($script:AmbiguityLogs -lt $Config.Quality.AmbiguityLogLimit){
