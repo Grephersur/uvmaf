@@ -1,0 +1,8 @@
+# Bug Fixes Applied to PowerShell Vulnerability Management Script
+
+1. Fixed Config.Performance.ValidationDegree from $3 to 3
+2. Fixed Create-FamilyScopeIfMissing parameter syntax error (removed stray ']')
+3. Fixed Add-Audit to auto-initialize $script:Audit if missing
+4. Fixed Get-ValidationRunspaceBootstrap to include STrim and Add-Audit functions
+
+The script is now ready to run without parse errors.
