@@ -894,8 +894,19 @@ function Update-WeeklyReport {
         $pkgOut.Dispose()
         $pkgOut = $null
         
-        # Move temp file to final location
-        Move-Item -Path $tempPath -Destination $ReportPath -Force
+        # Move temp file to final location (robust overwrite for PS 5.1)
+        if(Test-Path $ReportPath){
+            try {
+                [System.IO.File]::Replace($tempPath, $ReportPath, ($ReportPath + '.bak'), $true)
+                Remove-Item -Path ($ReportPath + '.bak') -Force -ErrorAction SilentlyContinue
+                if(Test-Path $tempPath){ Remove-Item -Path $tempPath -Force -ErrorAction SilentlyContinue }
+            } catch {
+                Copy-Item -Path $tempPath -Destination $ReportPath -Force
+                Remove-Item -Path $tempPath -Force -ErrorAction SilentlyContinue
+            }
+        } else {
+            Move-Item -Path $tempPath -Destination $ReportPath -Force
+        }
 
         Write-Log ("{0} update complete => New: {1}, Updated: {2}, Completed (0+valid): {3}" -f $ReportType,$stats.NewVulns,$stats.UpdatedVulns,$stats.ResolvedVulns) -Level SUCCESS
         Write-Log "Updated file: $ReportPath" -Level SUCCESS
@@ -1120,17 +1131,25 @@ function Detect-NewFindings { param([array]$VulnData)
 
 # --- Helper to package functions into runspace (for parallel validations) ---
 function Get-ValidationRunspaceBootstrap {
-    $defs = @()
-    $defs += ${function:NZ}.ToString()
-    $defs += ${function:Write-Log}.ToString()
-    $defs += ${function:Try-ParseDate}.ToString()
-    $defs += ${function:Test-IPv4}.ToString()
-    $defs += ${function:STrim}.ToString()
-    $defs += ${function:Add-Audit}.ToString()
-    $defs += ${function:Match-VulnByPriority}.ToString()
-    $defs += ${function:Open-ExcelPackageWithRetry}.ToString()
-    $defs += ${function:Run-SingleScopeValidation}.ToString()
-    $defs -join "`n`n"
+    $fnNames = @(
+        'NZ',
+        'Write-Log',
+        'Try-ParseDate',
+        'Test-IPv4',
+        'STrim',
+        'Add-Audit',
+        'Match-VulnByPriority',
+        'Open-ExcelPackageWithRetry',
+        'Run-SingleScopeValidation'
+    )
+    $defs = foreach($n in $fnNames){
+        $cmd = Get-Command -Name $n -CommandType Function -ErrorAction SilentlyContinue
+        if($cmd -and -not [string]::IsNullOrWhiteSpace($cmd.Definition)){
+            "function $n {`n$($cmd.Definition)`n}"
+        }
+    }
+    $preamble = "try { Add-Type -AssemblyName System.Drawing | Out-Null } catch {}"
+    ($preamble + "`n`n" + ($defs -join "`n`n"))
 }
 
 function Run-ScopeValidations { param([array]$VulnData)
